@@ -5,9 +5,11 @@ import json
 import os
 from pathlib import Path
 
+from .engine import run_micro_sprints
+
 app = typer.Typer(help="Mthds CLI Companion Tool")
 
-API_BASE_URL = "http://localhost:8000/api"
+API_BASE_URL = os.environ.get("MTHDS_API_URL", "http://localhost:8000/api")
 SERVICE_NAME = "mthds-cli"
 
 @app.command()
@@ -79,6 +81,35 @@ def link():
         
     typer.secho(f"Successfully linked current directory to Mthds!", fg=typer.colors.GREEN)
     typer.secho(f"Settings written to {settings_file}", fg=typer.colors.CYAN)
+
+def get_mthds_token():
+    config_file = Path.home() / ".mthds" / "config.json"
+    if not config_file.exists():
+        return None
+    try:
+        with open(config_file, "r") as f:
+            config = json.load(f)
+            username = config.get("active_user")
+            if not username:
+                return None
+            return keyring.get_password(SERVICE_NAME, username)
+    except Exception:
+        return None
+
+@app.command()
+def run(board_id: int = typer.Argument(..., help="The ID of the Mthds board to run micro-sprints on")):
+    """
+    Start the Micro-Sprint Manager for a given board.
+    Fetches the highest priority card, assigns it to the AI Persona, and automatically
+    moves it to 'Done' upon completion, waiting for user validation before continuing.
+    """
+    token = get_mthds_token()
+    if not token:
+        typer.secho("Error: Not logged in. Please run 'mthds login <token>' first.", fg=typer.colors.RED)
+        raise typer.Exit(1)
+        
+    run_micro_sprints(board_id=board_id, api_base_url=API_BASE_URL, mthds_token=token)
+
 
 if __name__ == "__main__":
     app()
