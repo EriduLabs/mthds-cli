@@ -68,6 +68,7 @@ export interface ListData {
     order: number;
     color: string;
     is_archived: boolean;
+    agent_state_mapping?: string;
     cards: TaskCard[];
 }
 

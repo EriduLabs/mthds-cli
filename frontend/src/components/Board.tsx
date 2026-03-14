@@ -36,6 +36,27 @@ export const Board: React.FC<BoardProps> = ({ boardId, searchQuery = '' }) => {
         fetchBoard();
     }, [boardId]);
 
+    // Setup WebSocket connection to listen for real-time updates
+    useEffect(() => {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws/board/${boardId}/`;
+        const ws = new WebSocket(wsUrl);
+
+        ws.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === 'board_update') {
+                    // Refetch board data silently on changes
+                    fetchBoard();
+                }
+            } catch (e) {
+                console.error('Error parsing WS message', e);
+            }
+        };
+
+        return () => ws.close();
+    }, [boardId]);
+
     const fetchBoard = async () => {
         try {
             const response = await api.get<BoardData>(`/boards/${boardId}/active/`);
@@ -245,6 +266,24 @@ export const Board: React.FC<BoardProps> = ({ boardId, searchQuery = '' }) => {
                                     <span className="text-xl leading-none mr-2">+</span> Add another list
                                 </button>
                                 {/* Archive & Export Buttons */}
+                                <button
+                                    onClick={() => {
+                                        api.get(`/boards/${boardId}/export-context/`)
+                                            .then(response => {
+                                                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(response.data, null, 2));
+                                                const link = document.createElement('a');
+                                                link.href = dataStr;
+                                                link.setAttribute('download', `board_context_${boardId}.json`);
+                                                document.body.appendChild(link);
+                                                link.click();
+                                                if (link.parentNode) link.parentNode.removeChild(link);
+                                            })
+                                            .catch(error => console.error('Export Context failed:', error));
+                                    }}
+                                    className="bg-[#ffffff3d] hover:bg-[#ffffff29] text-white transition-colors rounded-xl w-[272px] flex flex-shrink-0 cursor-pointer text-sm font-bold min-h-[44px] items-center px-4"
+                                >
+                                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg> Convert to App
+                                </button>
                                 <button
                                     onClick={() => setShowExportModal(true)}
                                     className="bg-[#ffffff3d] hover:bg-[#ffffff29] text-white transition-colors rounded-xl w-[272px] flex flex-shrink-0 cursor-pointer text-sm font-bold min-h-[44px] items-center px-4"

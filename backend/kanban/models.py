@@ -2,6 +2,12 @@ from django.db import models
 from django.contrib.auth.models import User
 import secrets
 
+class AgentState(models.TextChoices):
+    BACKLOG = 'backlog', 'Backlog'
+    TODO = 'todo', 'To Do'
+    IN_PROGRESS = 'in_progress', 'In Progress'
+    DONE = 'done', 'Done'
+
 class APIToken(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='api_tokens')
     token = models.CharField(max_length=128, unique=True, db_index=True)
@@ -42,6 +48,7 @@ class List(models.Model):
     name = models.CharField(max_length=255)
     order = models.IntegerField(default=0)
     color = models.CharField(max_length=255, blank=True, default='')
+    agent_state_mapping = models.CharField(max_length=20, choices=AgentState.choices, blank=True, null=True, help_text="Standardized mapping for the CLI/Agent")
     is_archived = models.BooleanField(default=False, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

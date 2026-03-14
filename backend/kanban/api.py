@@ -12,6 +12,8 @@ from django.http import HttpResponse
 from django.utils import timezone
 import os
 from ninja.errors import HttpError
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 
 from .ai_service import process_prompt
 
@@ -126,6 +128,7 @@ class ListSchema(Schema):
     name: str
     order: int
     color: str
+    agent_state_mapping: Optional[str] = None
     is_archived: bool
     cards: ListType[TaskCardSchema]
 
@@ -167,10 +170,12 @@ class CreateListSchema(Schema):
     board_id: int
     name: str
     color: Optional[str] = ''
+    agent_state_mapping: Optional[str] = None
 
 class UpdateListSchema(Schema):
     name: Optional[str] = None
     color: Optional[str] = None
+    agent_state_mapping: Optional[str] = None
     is_archived: Optional[bool] = None
 
 class CreateChecklistSchema(Schema):
@@ -200,6 +205,9 @@ class UpdateBoardLabelSchema(Schema):
 class AgentPromptSchema(Schema):
     prompt: str
     board_id: Optional[int] = None
+
+class CLIUpdateStateSchema(Schema):
+    target_state: str
 
 # API Endpoints
 @api.get("/boards/", response=ListType[BoardSchema])
@@ -354,6 +362,7 @@ def create_list(request, payload: CreateListSchema):
         board=board,
         name=payload.name,
         color=payload.color or '',
+        agent_state_mapping=payload.agent_state_mapping,
         order=order
     )
     # Re-fetch with prefetches (empty list, but keeps response shape consistent)
@@ -402,6 +411,17 @@ def move_taskcard(request, card_id: int, payload: MoveTaskCardSchema):
         description=f"Moved to {destination_list.name}"
     )
 
+    # Notify WebSocket clients
+    channel_layer = get_channel_layer()
+    async_to_sync(channel_layer.group_send)(
+        f"board_{destination_list.board.id}",
+        {
+            "type": "board_update",
+            "action": "card_moved",
+            "message": f"Card {card.id} moved."
+        }
+    )
+
     # Re-fetch with prefetches instead of refresh_from_db so response avoids N+1
     return get_object_or_404(_card_qs(), id=card.id)
 
@@ -445,12 +465,15 @@ def update_list(request, list_id: int, payload: UpdateListSchema):
     lst = get_object_or_404(List, id=list_id)
     check_board_ownership(request.user, lst.board)
     
-    if payload.name is not None:
-        lst.name = payload.name
-    if payload.color is not None:
-        lst.color = payload.color
-    if payload.is_archived is not None:
-        lst.is_archived = payload.is_archived
+    update_data = payload.dict(exclude_unset=True)
+    if 'name' in update_data:
+        lst.name = update_data['name']
+    if 'color' in update_data:
+        lst.color = update_data['color']
+    if 'agent_state_mapping' in update_data:
+        lst.agent_state_mapping = update_data['agent_state_mapping']
+    if 'is_archived' in update_data:
+        lst.is_archived = update_data['is_archived']
     lst.save()
     return get_object_or_404(_list_qs(), id=list_id)
 
@@ -737,3 +760,81 @@ def validate_cli_token(request, payload: ValidateTokenSchema):
         return {"success": True, "username": api_token.user.username, "message": "Token validated successfully."}
     except APIToken.DoesNotExist:
         return api.create_response(request, {"success": False, "message": "Invalid or inactive token."}, status=401)
+
+# --- CLI Specific Endpoints ---
+
+@api.get("/boards/{board_id}/export-context/", response=Dict[str, Any])
+def export_board_context(request, board_id: int):
+    board = get_object_or_404(Board, id=board_id)
+    check_board_ownership(request.user, board)
+    
+    lists = List.objects.filter(board=board, is_archived=False).order_by('order').prefetch_related(
+        Prefetch('cards', queryset=TaskCard.objects.filter(is_archived=False).order_by('order'))
+    )
+    
+    result = {
+        "board_id": board.id,
+        "name": board.name,
+        "lists": []
+    }
+    
+    for lst in lists:
+        list_data = {
+            "id": lst.id,
+            "name": lst.name,
+            "agent_state_mapping": lst.agent_state_mapping,
+            "cards": []
+        }
+        for card in lst.cards.all():
+            list_data["cards"].append({
+                "id": card.id,
+                "title": card.title,
+                "description": card.description,
+                "labels": card.labels,
+                "due_date": card.due_date.isoformat() if card.due_date else None
+            })
+        result["lists"].append(list_data)
+        
+    return result
+
+@api.put("/cards/{card_id}/update-state/", response=TaskCardSchema)
+def update_card_state_cli(request, card_id: int, payload: CLIUpdateStateSchema):
+    card = get_object_or_404(TaskCard, id=card_id)
+    board = card.list.board
+    check_board_ownership(request.user, board)
+    
+    target_list = List.objects.filter(board=board, agent_state_mapping=payload.target_state, is_archived=False).first()
+    if not target_list:
+        return api.create_response(request, {"error": f"No list found with state mapping '{payload.target_state}'"}, status=400)
+    
+    new_order = target_list.cards.count()
+    source_list = card.list
+    
+    if source_list.id != target_list.id:
+        source_cards = list(source_list.cards.exclude(id=card.id).order_by('order'))
+        for idx, c in enumerate(source_cards):
+            c.order = idx
+            c.save()
+            
+        card.list = target_list
+        card.order = new_order
+        card.save()
+
+        ActivityLog.objects.create(
+            card=card,
+            user=request.user if request.user.is_authenticated else None,
+            action_type='moved_cli',
+            description=f"Moved to {target_list.name} via CLI"
+        )
+
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f"board_{board.id}",
+            {
+                "type": "board_update",
+                "action": "card_moved",
+                "message": f"Card {card.id} moved to mapped state '{payload.target_state}'."
+            }
+        )
+
+    return get_object_or_404(_card_qs(), id=card.id)

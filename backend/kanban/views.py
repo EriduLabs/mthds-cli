@@ -3,7 +3,7 @@ from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import ensure_csrf_cookie
-from .models import Board
+from .models import Board, APIToken
 
 def register(request):
     if request.method == 'POST':
@@ -50,3 +50,15 @@ def workspace_members(request):
 @login_required
 def workspace_settings(request):
     return render(request, 'kanban/workspace_settings.html')
+
+@login_required
+def workspace_tokens(request):
+    if request.method == 'POST':
+        token_name = request.POST.get('token_name', '').strip()
+        if token_name:
+            # Token itself is auto-generated in the APIToken model save method
+            APIToken.objects.create(user=request.user, name=token_name)
+        return redirect('workspace_tokens')
+        
+    user_tokens = request.user.api_tokens.filter(is_active=True).order_by('-created_at')
+    return render(request, 'kanban/workspace_tokens.html', {'tokens': user_tokens})

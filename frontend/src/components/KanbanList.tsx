@@ -68,6 +68,15 @@ export const KanbanList: React.FC<KanbanListProps> = ({ list, onListChange, onCa
         }
     };
 
+    const handleChangeAgentState = async (state: string | null) => {
+        try {
+            await api.put(`/lists/${list.id}/`, { agent_state_mapping: state });
+            onListChange();
+        } catch (err) {
+            console.error('Failed to change agent state mapping:', err);
+        }
+    };
+
     const hasColor = list.color && list.color !== '';
 
     return (
@@ -75,9 +84,16 @@ export const KanbanList: React.FC<KanbanListProps> = ({ list, onListChange, onCa
             <div className="rounded-xl flex flex-col max-h-full transition-colors relative" style={{ backgroundColor: hasColor ? list.color : '#101204' }}>
                 {/* List Header */}
                 <div className={`px-4 py-3 flex items-start justify-between relative ${hasColor ? 'bg-black/20 rounded-t-xl shadow-sm z-10' : 'bg-[#101204] rounded-t-xl'}`}>
-                    <h2 className={`font-semibold text-sm flex-1 cursor-pointer py-1 ml-1 truncate ${hasColor ? 'text-white' : 'text-[#b6c2cf]'}`}>
-                        {list.name}
-                    </h2>
+                    <div className="flex flex-col flex-1 min-w-0 pr-2">
+                        <h2 className={`font-semibold text-sm cursor-pointer py-1 ml-1 truncate ${hasColor ? 'text-white' : 'text-[#b6c2cf]'}`}>
+                            {list.name}
+                        </h2>
+                        {list.agent_state_mapping && (
+                            <span className="text-[10px] uppercase font-bold text-gray-400 ml-1 truncate">
+                                🤖 Agent: {list.agent_state_mapping.replace('_', ' ')}
+                            </span>
+                        )}
+                    </div>
 
                     <div ref={optionsRef} className="">
                         <button
@@ -99,6 +115,34 @@ export const KanbanList: React.FC<KanbanListProps> = ({ list, onListChange, onCa
                                     <button className="w-full text-left px-4 py-1.5 hover:bg-[#a6c5e229] transition-colors">Copy list...</button>
                                     <button className="w-full text-left px-4 py-1.5 hover:bg-[#a6c5e229] transition-colors">Move list...</button>
                                     <button className="w-full text-left px-4 py-1.5 hover:bg-[#a6c5e229] transition-colors">Watch</button>
+                                </div>
+
+                                {/* Agent State Mapping Section */}
+                                <div className="mt-2 px-4 pt-3 pb-2 border-t border-[#333c43]">
+                                    <span className="text-xs font-semibold text-[#8c9bab] block mb-2">Agent State Mapping</span>
+                                    <div className="flex flex-col gap-1">
+                                        {[
+                                            { label: 'Backlog', value: 'backlog' },
+                                            { label: 'To Do', value: 'todo' },
+                                            { label: 'In Progress', value: 'in_progress' },
+                                            { label: 'Done', value: 'done' },
+                                            { label: 'Unmapped', value: null }
+                                        ].map(state => (
+                                            <button
+                                                key={state.label}
+                                                onClick={() => {
+                                                    handleChangeAgentState(state.value);
+                                                    setShowOptions(false);
+                                                }}
+                                                className="w-full text-left px-2 py-1 hover:bg-[#a6c5e229] rounded transition-colors text-xs flex items-center justify-between"
+                                            >
+                                                <span>{state.label}</span>
+                                                {list.agent_state_mapping === state.value || (!list.agent_state_mapping && state.value === null) ? (
+                                                    <span className="text-[#579dff]">✓</span>
+                                                ) : null}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
 
                                 <div className="mt-3 px-4 pt-3 pb-1 border-t border-[#333c43]">

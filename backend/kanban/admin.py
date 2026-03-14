@@ -13,7 +13,7 @@ class BoardMemberAdmin(admin.ModelAdmin):
 
 @admin.register(List)
 class ListAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name', 'board', 'order')
+    list_display = ('id', 'name', 'board', 'order', 'agent_state_mapping')
     list_filter = ('board',)
     ordering = ('board', 'order')
 

@@ -39,6 +39,7 @@ urlpatterns = [
     path('workspace/home/', kanban_views.workspace_home, name='workspace_home'),
     path('workspace/members/', kanban_views.workspace_members, name='workspace_members'),
     path('workspace/settings/', kanban_views.workspace_settings, name='workspace_settings'),
+    path('workspace/tokens/', kanban_views.workspace_tokens, name='workspace_tokens'),
     
     # Redirect root to dashboard
     path('', RedirectView.as_view(url='/dashboard/', permanent=False), name='index'),
