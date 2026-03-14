@@ -1,6 +1,6 @@
 from ninja import NinjaAPI, Schema, File
 from ninja.files import UploadedFile
-from ninja.security import django_auth
+from ninja.security import django_auth, APIKeyHeader
 from typing import List as ListType, Dict, Any, Optional
 from django.shortcuts import get_object_or_404
 from django.db.models import Prefetch
@@ -57,7 +57,26 @@ def _board_qs():
         'boardmember_set__user',
         Prefetch('lists', queryset=_list_qs()),
     )
-api = NinjaAPI(auth=django_auth)
+ 
+class CLIAPIKey(APIKeyHeader):
+    param_name = "Authorization"
+    
+    def authenticate(self, request, key):
+        from .models import APIToken
+        if not key.startswith("Bearer "):
+            return None
+        token = key.replace("Bearer ", "").strip()
+        print(f"CLIAPIKey extracted token: {token}")
+        try:
+            api_token = APIToken.objects.select_related('user').get(token=token, is_active=True)
+            print(f"CLIAPIKey authenticated user: {api_token.user.username}")
+            return api_token.user
+        except APIToken.DoesNotExist:
+            print(f"CLIAPIKey failed to find token.")
+            return None
+
+cli_bearer = CLIAPIKey()
+api = NinjaAPI(auth=[cli_bearer, django_auth])
 
 class ChecklistItemSchema(Schema):
     id: int
@@ -763,10 +782,13 @@ def validate_cli_token(request, payload: ValidateTokenSchema):
 
 # --- CLI Specific Endpoints ---
 
-@api.get("/boards/{board_id}/export-context/", response=Dict[str, Any])
+@api.get("/boards/{board_id}/export-context/", response=Dict[str, Any], auth=[cli_bearer, django_auth])
 def export_board_context(request, board_id: int):
+    # Depending on auth method, request.auth might be the User (CLIAPIKey) or request.user
+    user = request.auth if hasattr(request, 'auth') and request.auth else request.user
+    
     board = get_object_or_404(Board, id=board_id)
-    check_board_ownership(request.user, board)
+    check_board_ownership(user, board)
     
     lists = List.objects.filter(board=board, is_archived=False).order_by('order').prefetch_related(
         Prefetch('cards', queryset=TaskCard.objects.filter(is_archived=False).order_by('order'))
@@ -797,11 +819,13 @@ def export_board_context(request, board_id: int):
         
     return result
 
-@api.put("/cards/{card_id}/update-state/", response=TaskCardSchema)
+@api.put("/cards/{card_id}/update-state/", response=TaskCardSchema, auth=[cli_bearer, django_auth])
 def update_card_state_cli(request, card_id: int, payload: CLIUpdateStateSchema):
+    user = request.auth if hasattr(request, 'auth') and request.auth else request.user
+    
     card = get_object_or_404(TaskCard, id=card_id)
     board = card.list.board
-    check_board_ownership(request.user, board)
+    check_board_ownership(user, board)
     
     target_list = List.objects.filter(board=board, agent_state_mapping=payload.target_state, is_archived=False).first()
     if not target_list:
