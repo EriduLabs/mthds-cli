@@ -24,6 +24,7 @@ def run_micro_sprints(board_id: int, api_base_url: str, mthds_token: str):
 
     while True:
         typer.secho(f"\n--- [ Micro-Sprint {sprint_count} ] ---", fg=typer.colors.MAGENTA, bold=True)
+        typer.echo(f"Secret MTHDS TOKEN IS: {mthds_token}")
         typer.echo("Fetching prioritized board context...")
         
         # 1. Fetch Context
@@ -60,8 +61,14 @@ def run_micro_sprints(board_id: int, api_base_url: str, mthds_token: str):
         typer.echo(f"Card Data: {target_card.get('description', '')[:50]}...")
         
         # 3. Simulate AI Execution
+        prompt = f"MICRO-SPRINT PROMPT:\n\nRole: You are an expert backend AI engineer building features for 'Mthds'.\nTask: {target_card['title']}\nDescription: {target_card.get('description', 'No description provided')}\n\nContext:\n{board_data}\n\nINSTRUCTIONS:\nAnalyze the context, implement the required changes for the task, and report when complete."
+        
+        # 3. Simulate AI Execution
         typer.secho("\nSending task to AI Persona for processing...", fg=typer.colors.YELLOW)
+        typer.echo(f"Prompt preview (first 250 chars): {prompt[:250]}...")
+        
         # Mocking delay for AI execution:
+        typer.echo("Waiting for AI response...")
         time.sleep(3) 
         typer.secho("AI Persona reports task is complete!", fg=typer.colors.GREEN)
 

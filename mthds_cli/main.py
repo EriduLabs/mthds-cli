@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 from .engine import run_micro_sprints
+from .ai_config import save_ai_token
 
 app = typer.Typer(help="Mthds CLI Companion Tool")
 
@@ -13,10 +14,13 @@ API_BASE_URL = os.environ.get("MTHDS_API_URL", "http://localhost:8000/api")
 SERVICE_NAME = "mthds-cli"
 
 @app.command()
-def login(token: str = typer.Argument(..., help="The API Token generated from your Mthds web profile")):
+def login(token: str = typer.Argument(None, help="The API Token generated from your Mthds web profile")):
     """
     Authenticate the CLI using your API Token.
     """
+    if not token:
+        token = typer.prompt("Please enter your Mthds API Token", hide_input=True)
+
     typer.echo("Validating token...")
     try:
         response = requests.post(f"{API_BASE_URL}/auth/cli-token/", json={"token": token})
@@ -44,6 +48,10 @@ def login(token: str = typer.Argument(..., help="The API Token generated from yo
                 
                 with open(config_file, "w") as f:
                     json.dump(config, f)
+                
+                ai_key = typer.prompt("Please enter your AI API Key (e.g. OpenAI or Anthropic)", hide_input=True)
+                if ai_key:
+                    save_ai_token(ai_key)
                 
                 typer.secho(f"Successfully authenticated as {username}!", fg=typer.colors.GREEN)
             else:
