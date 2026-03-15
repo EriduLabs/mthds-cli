@@ -28,10 +28,8 @@ def login(token: str = typer.Argument(None, help="The API Token generated from y
             data = response.json()
             if data.get("success"):
                 username = data.get("username", "User")
-                # Store token securely in OS keyring
                 keyring.set_password(SERVICE_NAME, username, token)
                 
-                # Also save the active username so we know who is currently logged in
                 config_dir = Path.home() / ".mthds"
                 config_dir.mkdir(exist_ok=True)
                 config_file = config_dir / "config.json"
@@ -60,6 +58,63 @@ def login(token: str = typer.Argument(None, help="The API Token generated from y
             typer.secho(f"Failed to communicate with Mthds server. HTTP Status: {response.status_code}", fg=typer.colors.RED)
     except requests.RequestException as e:
         typer.secho(f"Network error: {e}", fg=typer.colors.RED)
+
+@app.command()
+def logout():
+    """
+    Remove the currently saved Mthds API Token and log out.
+    """
+    config_file = Path.home() / ".mthds" / "config.json"
+    if config_file.exists():
+        try:
+            with open(config_file, "r") as f:
+                config = json.load(f)
+                username = config.get("active_user")
+            
+            if username:
+                try:
+                    keyring.delete_password(SERVICE_NAME, username)
+                except keyring.errors.PasswordDeleteError:
+                    pass # Key might already be gone
+                
+                config.pop("active_user", None)
+                with open(config_file, "w") as f:
+                    json.dump(config, f)
+                    
+                typer.secho(f"Successfully logged out user: {username}", fg=typer.colors.GREEN)
+            else:
+                typer.secho("No active user configuration found.", fg=typer.colors.YELLOW)
+        except Exception as e:
+            typer.secho(f"Error during logout: {e}", fg=typer.colors.RED)
+    else:
+        typer.secho("Not currently logged in.", fg=typer.colors.YELLOW)
+
+@app.command()
+def status():
+    """
+    View the currently active authenticated user for the CLI.
+    """
+    config_file = Path.home() / ".mthds" / "config.json"
+    if config_file.exists():
+        try:
+            with open(config_file, "r") as f:
+                config = json.load(f)
+                username = config.get("active_user")
+            
+            if username:
+                # verify token exists in keyring
+                token = keyring.get_password(SERVICE_NAME, username)
+                if token:
+                    typer.secho(f"Currently logged in as: ", nl=False)
+                    typer.secho(f"{username}", fg=typer.colors.GREEN, bold=True)
+                else:
+                    typer.secho(f"User '{username}' is set in config, but API Token is missing from secure storage. Please login again.", fg=typer.colors.YELLOW)
+            else:
+                typer.secho("Not currently logged in.", fg=typer.colors.YELLOW)
+        except Exception as e:
+            typer.secho(f"Error reading status: {e}", fg=typer.colors.RED)
+    else:
+        typer.secho("Not currently logged in.", fg=typer.colors.YELLOW)
 
 @app.command()
 def link():
