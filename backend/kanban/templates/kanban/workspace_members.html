@@ -1,0 +1,19 @@
+{% extends 'kanban/dashboard.html' %}
+
+{% block dashboard_content %}
+<div class="bg-[#282e33] rounded p-6 shadow-sm border border-[#333c43]">
+    <h2 class="text-xl font-bold text-[#b6c2cf] mb-2">Workspace Members</h2>
+    <p class="text-[#8c9bab] text-sm mb-4">Manage the members of your workspace. Currently, you are the only admin.</p>
+
+    <div class="flex items-center gap-3 p-3 bg-[#22272b] rounded-lg border border-[#333c43] max-w-sm">
+        <div
+            class="w-10 h-10 rounded-full bg-gradient-to-br from-teal-500 to-green-500 flex items-center justify-center text-white font-bold text-lg shrink-0">
+            {{ user.username|make_list|first|upper }}
+        </div>
+        <div>
+            <div class="font-bold text-[#b6c2cf]">{{ user.username }} (You)</div>
+            <div class="text-xs text-[#8c9bab]">Workspace Admin</div>
+        </div>
+    </div>
+</div>
+{% endblock dashboard_content %}

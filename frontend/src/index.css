@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+@theme {
+  --color-base: #111827;
+  /* gray-900 */
+  --color-text: #f3f4f6;
+  /* gray-100 */
+}
+
+@layer base {
+  body {
+    background-color: var(--color-base);
+    color: var(--color-text);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}

@@ -1,0 +1,12 @@
+{% extends 'kanban/dashboard.html' %}
+
+{% block dashboard_content %}
+<div class="bg-[#282e33] rounded p-6 shadow-sm border border-[#333c43]">
+    <h2 class="text-xl font-bold text-[#b6c2cf] mb-2">Home</h2>
+    <p class="text-[#8c9bab] text-sm mb-4">Welcome to your workspace home. Here you will see activity, upcoming cards,
+        and highlights across all your boards.</p>
+    <a href="{% url 'dashboard' %}"
+        class="bg-[#a6c5e229] hover:bg-[#a6c5e23d] text-[#b6c2cf] px-4 py-2 rounded text-sm font-semibold transition-colors inline-block">View
+        Your Boards</a>
+</div>
+{% endblock dashboard_content %}
