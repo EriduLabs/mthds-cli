@@ -1,0 +1,76 @@
+name: Deploy to Google Cloud Run
+
+on:
+  push:
+    branches:
+      - master
+      - main
+
+env:
+  PROJECT_ID: mthds-489601
+  REGION: us-central1
+  REPO_NAME: mthds-repo
+  BACKEND_SERVICE: mthds-backend
+  FRONTEND_SERVICE: mthds-frontend
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    # Add "id-token: write" permission for Workload Identity Federation (Optional but recommended over JSON keys)
+    # Using JSON keys for this setup based on plan
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: '${{ secrets.GCP_KEY }}'
+
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+      with:
+        project_id: ${{ env.PROJECT_ID }}
+
+    - name: Configure Docker to use Artifact Registry
+      run: |
+        gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+        
+    - name: Build and Push Backend Image
+      run: |
+        docker build -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.BACKEND_SERVICE }}:${{ github.sha }} ./backend
+        docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.BACKEND_SERVICE }}:${{ github.sha }}
+
+    - name: Build and Push Frontend Image
+      run: |
+        docker build -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.FRONTEND_SERVICE }}:${{ github.sha }} ./frontend
+        docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.FRONTEND_SERVICE }}:${{ github.sha }}
+
+    - name: Deploy Backend to Cloud Run
+      id: deploy-backend
+      uses: google-github-actions/deploy-cloudrun@v2
+      with:
+        service: ${{ env.BACKEND_SERVICE }}
+        region: ${{ env.REGION }}
+        image: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.BACKEND_SERVICE }}:${{ github.sha }}
+        flags: '--add-cloudsql-instances=mthds-489601:us-central1:mthds-db-instance --vpc-egress=all-traffic'
+        env_vars: |
+          DEBUG=False
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+          REDIS_HOST=${{ secrets.REDIS_HOST }}
+          REDIS_PORT=6379
+          SECRET_KEY=${{ secrets.DJANGO_SECRET_KEY }}
+          FRONTEND_URL=https://${{ steps.deploy-frontend.outputs.url }}
+
+    - name: Deploy Frontend to Cloud Run
+      id: deploy-frontend
+      uses: google-github-actions/deploy-cloudrun@v2
+      with:
+        service: ${{ env.FRONTEND_SERVICE }}
+        region: ${{ env.REGION }}
+        image: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.FRONTEND_SERVICE }}:${{ github.sha }}
+        env_vars: |
+          VITE_API_BASE_URL=https://${{ steps.deploy-backend.outputs.url }}/api
+          VITE_WS_URL=wss://${{ steps.deploy-backend.outputs.url }}/ws
