@@ -24,16 +24,18 @@ pip install -e .</code>
         <div class="bg-[#1d2125] p-4 rounded border border-[#333c43]">
             <h3 class="text-sm font-bold text-[#b6c2cf] mb-2">2. Authenticate</h3>
             <p class="text-xs text-[#8c9bab] mb-2">Copy one of your tokens from below to log in:</p>
-            <div class="flex items-center bg-black/30 rounded px-3 py-2 border border-[#333c43]">
+            <div class="flex flex-col gap-2 bg-black/30 rounded px-3 py-2 border border-[#333c43]">
                 <code class="text-xs text-[#579dff] font-mono">mthds login &lt;your-token&gt;</code>
+                <span class="text-[10px] text-[#8c9bab] border-t border-[#333c43] pt-1">If <code class="text-[#b6c2cf]">mthds</code> is not in your PATH, use: <code class="text-[#579dff]">python -m mthds_cli.main login &lt;your-token&gt;</code></span>
             </div>
         </div>
 
         <div class="bg-[#1d2125] p-4 rounded border border-[#333c43]">
             <h3 class="text-sm font-bold text-[#b6c2cf] mb-2">3. Start the Micro-Sprint Engine</h3>
             <p class="text-xs text-[#8c9bab] mb-2">Setup an AI model in <code class="text-[#579dff]">~/.mthds/ai_config.json</code>, then run your board (e.g., ID 12):</p>
-            <div class="flex items-center bg-black/30 rounded px-3 py-2 border border-[#333c43]">
+            <div class="flex flex-col gap-2 bg-black/30 rounded px-3 py-2 border border-[#333c43]">
                 <code class="text-xs text-[#579dff] font-mono">mthds run 12</code>
+                <span class="text-[10px] text-[#8c9bab] border-t border-[#333c43] pt-1">If <code class="text-[#b6c2cf]">mthds</code> is not in your PATH, use: <code class="text-[#579dff]">python -m mthds_cli.main run 12</code></span>
             </div>
         </div>
     </div>
